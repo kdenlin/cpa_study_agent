@@ -4,6 +4,7 @@ import random
 from dotenv import load_dotenv
 from openai import OpenAI
 import pdfplumber
+import chromadb
 import re
 
 # Load environment variables
@@ -15,6 +16,8 @@ app.secret_key = os.urandom(24)  # For session management
 # Set up project paths
 project_root = os.path.abspath(os.path.dirname(__file__))
 questions_folder = os.path.join(project_root, "data", "questions")
+textbooks_folder = os.path.join(project_root, "data", "textbooks")
+chroma_db_path = os.path.join(project_root, "db", "chroma_db_test")
 
 def setup_openai_client():
     """Set up OpenAI client using environment variables."""
@@ -57,6 +60,43 @@ def load_questions_from_folder(folder_path):
                 print(f"Error processing {filename}: {e}")
     return questions
 
+def setup_chroma_client():
+    """Set up ChromaDB client."""
+    try:
+        client = chromadb.PersistentClient(path=chroma_db_path)
+        return client
+    except Exception as e:
+        print(f"Error setting up ChromaDB: {e}")
+        return None
+
+def retrieve_relevant_chunks(query, n_results=3):
+    """Retrieve relevant chunks from ChromaDB."""
+    client = setup_chroma_client()
+    if not client:
+        return []
+    
+    try:
+        # Get the collection (create if it doesn't exist)
+        collection = client.get_or_create_collection("textbook_chunks")
+        
+        # Search for relevant chunks
+        results = collection.query(
+            query_texts=[query],
+            n_results=n_results
+        )
+        
+        # Format results
+        chunks = []
+        if results['documents'] and results['documents'][0]:
+            for i, doc in enumerate(results['documents'][0]):
+                metadata = results['metadatas'][0][i] if results['metadatas'] and results['metadatas'][0] else {}
+                chunks.append((doc, metadata))
+        
+        return chunks
+    except Exception as e:
+        print(f"Error retrieving chunks: {e}")
+        return []
+
 def get_simple_context(query):
     """Get simple context based on keywords instead of embeddings."""
     # This is a simplified version that doesn't require sentence-transformers
@@ -69,14 +109,16 @@ def check_answer_with_openai(question_text, user_answer, context_chunks=None, mo
     if client is None:
         return "Error: OpenAI API key not configured. Please check your .env file."
     
-    # Use simple context if no chunks provided
-    if not context_chunks:
-        context = get_simple_context(question_text)
-    else:
+    # Try to get relevant chunks from ChromaDB
+    context_chunks = retrieve_relevant_chunks(question_text)
+    
+    if context_chunks:
         context = "\n\n".join([
-            f"From {meta['filename']} (page {meta['page']}):\n{chunk}"
+            f"From {meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')}):\n{chunk}"
             for chunk, meta in context_chunks
         ])
+    else:
+        context = get_simple_context(question_text)
     
     system_prompt = """You are Miles's enthusiastic and encouraging Tax Court Exam Prep Buddy! Your role is to:
 
@@ -161,9 +203,17 @@ def check_answer():
     # Get feedback from OpenAI
     feedback = check_answer_with_openai(question_text, user_answer)
     
+    # Get context sources from chunks
+    context_sources = []
+    if context_chunks:
+        context_sources = [f"{meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')})" 
+                          for _, meta in context_chunks]
+    else:
+        context_sources = ['Sample Textbook']
+    
     return jsonify({
         'feedback': feedback,
-        'context_sources': ['Sample Textbook']
+        'context_sources': context_sources
     })
 
 @app.route('/api/ask-question', methods=['POST'])
@@ -180,7 +230,16 @@ def ask_question():
     if client is None:
         return jsonify({'error': 'OpenAI API key not configured'}), 500
     
-    context = get_simple_context(question)
+    # Try to get relevant chunks from ChromaDB
+    context_chunks = retrieve_relevant_chunks(question)
+    
+    if context_chunks:
+        context = "\n\n".join([
+            f"From {meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')}):\n{chunk}"
+            for chunk, meta in context_chunks
+        ])
+    else:
+        context = get_simple_context(question)
     
     system_prompt = """You are Miles's enthusiastic and encouraging Tax Court Exam Prep Buddy! Use the provided textbook excerpts to answer questions accurately and comprehensively.
 
@@ -215,9 +274,17 @@ Please provide a clear, accurate answer based on the context provided."""
         )
         answer = response.choices[0].message.content.strip()
         
+        # Get context sources from chunks
+        context_sources = []
+        if context_chunks:
+            context_sources = [f"{meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')})" 
+                              for _, meta in context_chunks]
+        else:
+            context_sources = ['Sample Textbook']
+        
         return jsonify({
             'answer': answer,
-            'context_sources': ['Sample Textbook']
+            'context_sources': context_sources
         })
     except Exception as e:
         return jsonify({'error': f'Error calling OpenAI API: {str(e)}'}), 500
