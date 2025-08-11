@@ -304,13 +304,28 @@ def check_answer():
 def ingest_documents():
     """Ingest textbook documents into ChromaDB."""
     try:
+        print("Starting document ingestion...")
+        
+        # Check if textbooks folder exists
+        if not os.path.exists(textbooks_folder):
+            error_msg = f"Textbooks folder not found: {textbooks_folder}"
+            print(error_msg)
+            return jsonify({'error': error_msg}), 500
+        
+        # Check what files are in the folder
+        files = os.listdir(textbooks_folder)
+        pdf_files = [f for f in files if f.lower().endswith('.pdf')]
+        print(f"Found {len(pdf_files)} PDF files: {pdf_files}")
+        
         success = ingest_documents_to_chromadb()
         if success:
             return jsonify({'message': 'Documents successfully ingested into ChromaDB'})
         else:
-            return jsonify({'error': 'Failed to ingest documents'}), 500
+            return jsonify({'error': 'Failed to ingest documents - check server logs'}), 500
     except Exception as e:
-        return jsonify({'error': f'Error ingesting documents: {str(e)}'}), 500
+        error_msg = f'Error ingesting documents: {str(e)}'
+        print(error_msg)
+        return jsonify({'error': error_msg}), 500
 
 @app.route('/api/ask-question', methods=['POST'])
 def ask_question():
