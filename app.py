@@ -3,6 +3,7 @@ import os
 import random
 from dotenv import load_dotenv
 from openai import OpenAI
+import pdfplumber
 import re
 
 # Load environment variables
@@ -34,12 +35,24 @@ def load_questions_from_folder(folder_path):
         if filename.lower().endswith('.pdf'):
             pdf_path = os.path.join(folder_path, filename)
             try:
-                # For now, we'll create placeholder questions since we removed pdfplumber
-                # In a real deployment, you'd want to add pdfplumber back
-                questions.append({
-                    'text': f"Sample Tax Court question from {filename}",
-                    'source': filename
-                })
+                with pdfplumber.open(pdf_path) as pdf:
+                    full_text = ""
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            full_text += "\n" + page_text
+                    
+                    # Use regex to extract questions
+                    pattern = r'(Question [A-Z]-\d+ \([^)]+\)[\s\S]*?)(?=Question [A-Z]-\d+ \(|\Z)'
+                    matches = re.findall(pattern, full_text, re.IGNORECASE)
+                    for q in matches:
+                        # Remove everything after 'SUGGESTED ANSWER:' if present
+                        marker = 'SUGGESTED ANSWER:'
+                        idx = q.upper().find(marker)
+                        if idx != -1:
+                            q = q[:idx].strip()
+                        if len(q.strip()) > 20:
+                            questions.append({'text': q.strip(), 'source': filename})
             except Exception as e:
                 print(f"Error processing {filename}: {e}")
     return questions
