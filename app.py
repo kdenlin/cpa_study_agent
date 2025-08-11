@@ -130,22 +130,97 @@ def ingest_documents_to_chromadb():
             print(f"Collection already has {collection.count()} documents")
             return True
         
-        documents = []
-        metadatas = []
-        ids = []
+        total_chunks = 0
         
-        chunk_id = 0
-        
+        # Process one PDF at a time to avoid memory issues
         for filename in os.listdir(textbooks_folder):
             if filename.lower().endswith('.pdf'):
                 pdf_path = os.path.join(textbooks_folder, filename)
+                print(f"Processing {filename}...")
+                
                 try:
+                    documents = []
+                    metadatas = []
+                    ids = []
+                    
                     with pdfplumber.open(pdf_path) as pdf:
                         for page_num, page in enumerate(pdf.pages):
+                            try:
+                                page_text = page.extract_text()
+                                if page_text and len(page_text.strip()) > 50:
+                                    # Split into smaller chunks (300 characters each)
+                                    chunks = [page_text[i:i+300] for i in range(0, len(page_text), 300)]
+                                    
+                                    for chunk in chunks:
+                                        if len(chunk.strip()) > 50:
+                                            documents.append(chunk.strip())
+                                            metadatas.append({
+                                                'filename': filename,
+                                                'page': page_num + 1
+                                            })
+                                            ids.append(f"chunk_{total_chunks}")
+                                            total_chunks += 1
+                                            
+                                            # Add to ChromaDB in smaller batches
+                                            if len(documents) % 25 == 0:
+                                                collection.add(
+                                                    documents=documents[-25:],
+                                                    metadatas=metadatas[-25:],
+                                                    ids=ids[-25:]
+                                                )
+                                                print(f"  Added {len(documents)} chunks from {filename}")
+                            except Exception as e:
+                                print(f"  Error processing page {page_num + 1} in {filename}: {e}")
+                                continue
+                    
+                    # Add any remaining documents from this file
+                    if documents:
+                        collection.add(
+                            documents=documents,
+                            metadatas=metadatas,
+                            ids=ids
+                        )
+                        print(f"  Completed {filename}: {len(documents)} chunks")
+                        
+                except Exception as e:
+                    print(f"Error processing {filename}: {e}")
+                    continue
+        
+        print(f"Successfully ingested {total_chunks} total chunks into ChromaDB")
+        return True
+        
+    except Exception as e:
+        print(f"Error ingesting documents: {e}")
+        return False
+
+def ingest_specific_files(file_list):
+    """Ingest specific PDF files into ChromaDB."""
+    client = setup_chroma_client()
+    
+    if not client:
+        print("Failed to setup ChromaDB")
+        return False
+    
+    try:
+        collection = client.get_or_create_collection("textbook_chunks")
+        total_chunks = 0
+        
+        for filename in file_list:
+            pdf_path = os.path.join(textbooks_folder, filename)
+            print(f"Processing {filename}...")
+            
+            try:
+                documents = []
+                metadatas = []
+                ids = []
+                
+                with pdfplumber.open(pdf_path) as pdf:
+                    for page_num, page in enumerate(pdf.pages):
+                        try:
                             page_text = page.extract_text()
                             if page_text and len(page_text.strip()) > 50:
-                                # Split into chunks (roughly 500 characters each)
-                                chunks = [page_text[i:i+500] for i in range(0, len(page_text), 500)]
+                                # Split into smaller chunks (300 characters each)
+                                chunks = [page_text[i:i+300] for i in range(0, len(page_text), 300)]
                                 
                                 for chunk in chunks:
                                     if len(chunk.strip()) > 50:
@@ -154,34 +229,39 @@ def ingest_documents_to_chromadb():
                                             'filename': filename,
                                             'page': page_num + 1
                                         })
-                                        ids.append(f"chunk_{chunk_id}")
-                                        chunk_id += 1
+                                        ids.append(f"chunk_{total_chunks}")
+                                        total_chunks += 1
                                         
-                                        # Add to ChromaDB in batches
-                                        if len(documents) % 50 == 0:
+                                        # Add to ChromaDB in smaller batches
+                                        if len(documents) % 25 == 0:
                                             collection.add(
-                                                documents=documents[-50:],
-                                                metadatas=metadatas[-50:],
-                                                ids=ids[-50:]
+                                                documents=documents[-25:],
+                                                metadatas=metadatas[-25:],
+                                                ids=ids[-25:]
                                             )
-                                            print(f"Added {len(documents)} chunks from {filename}")
-                                        
-                except Exception as e:
-                    print(f"Error processing {filename}: {e}")
+                                            print(f"  Added {len(documents)} chunks from {filename}")
+                        except Exception as e:
+                            print(f"  Error processing page {page_num + 1} in {filename}: {e}")
+                            continue
+                
+                # Add any remaining documents from this file
+                if documents:
+                    collection.add(
+                        documents=documents,
+                        metadatas=metadatas,
+                        ids=ids
+                    )
+                    print(f"  Completed {filename}: {len(documents)} chunks")
+                    
+            except Exception as e:
+                print(f"Error processing {filename}: {e}")
+                continue
         
-        # Add any remaining documents
-        if documents:
-            collection.add(
-                documents=documents,
-                metadatas=metadatas,
-                ids=ids
-            )
-        
-        print(f"Successfully ingested {len(documents)} chunks into ChromaDB")
+        print(f"Successfully ingested {total_chunks} total chunks from batch")
         return True
         
     except Exception as e:
-        print(f"Error ingesting documents: {e}")
+        print(f"Error ingesting specific files: {e}")
         return False
 
 def get_simple_context(query):
@@ -329,6 +409,89 @@ def ingest_documents():
         error_msg = f'Error ingesting documents: {str(e)}'
         print(error_msg)
         return jsonify({'error': error_msg}), 500
+
+@app.route('/api/ingest-batch', methods=['POST'])
+def ingest_batch():
+    """Ingest a specific batch of PDF files."""
+    try:
+        data = request.get_json()
+        batch_size = data.get('batch_size', 3)  # Default 3 PDFs per batch
+        start_index = data.get('start_index', 0)  # Which batch to start with
+        
+        print(f"Starting batch ingestion: batch_size={batch_size}, start_index={start_index}")
+        
+        # Check if textbooks folder exists
+        if not os.path.exists(textbooks_folder):
+            error_msg = f"Textbooks folder not found: {textbooks_folder}"
+            print(error_msg)
+            return jsonify({'error': error_msg}), 500
+        
+        # Get list of PDF files
+        files = os.listdir(textbooks_folder)
+        pdf_files = [f for f in files if f.lower().endswith('.pdf')]
+        pdf_files.sort()  # Sort for consistent ordering
+        
+        if not pdf_files:
+            return jsonify({'error': 'No PDF files found'}), 500
+        
+        # Calculate batch range
+        start_file = start_index * batch_size
+        end_file = min(start_file + batch_size, len(pdf_files))
+        
+        if start_file >= len(pdf_files):
+            return jsonify({
+                'message': 'All batches completed!',
+                'total_files': len(pdf_files),
+                'processed_files': len(pdf_files),
+                'is_complete': True
+            })
+        
+        # Process this batch
+        batch_files = pdf_files[start_file:end_file]
+        print(f"Processing batch: {batch_files}")
+        
+        success = ingest_specific_files(batch_files)
+        
+        if success:
+            is_complete = end_file >= len(pdf_files)
+            return jsonify({
+                'message': f'Successfully processed batch: {batch_files}',
+                'processed_files': end_file,
+                'total_files': len(pdf_files),
+                'next_batch': start_index + 1 if not is_complete else None,
+                'is_complete': is_complete
+            })
+        else:
+            return jsonify({'error': f'Failed to process batch: {batch_files}'}), 500
+            
+    except Exception as e:
+        error_msg = f'Error in batch ingestion: {str(e)}'
+        print(error_msg)
+        return jsonify({'error': error_msg}), 500
+
+@app.route('/api/ingest-status', methods=['GET'])
+def ingest_status():
+    """Check the status of document ingestion."""
+    try:
+        client = setup_chroma_client()
+        if not client:
+            return jsonify({'error': 'ChromaDB not available'}), 500
+        
+        collection = client.get_or_create_collection("textbook_chunks")
+        chunk_count = collection.count()
+        
+        # Get list of PDF files
+        files = os.listdir(textbooks_folder) if os.path.exists(textbooks_folder) else []
+        pdf_files = [f for f in files if f.lower().endswith('.pdf')]
+        
+        return jsonify({
+            'chunks_ingested': chunk_count,
+            'total_pdf_files': len(pdf_files),
+            'has_data': chunk_count > 0
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error checking status: {str(e)}'}), 500
 
 @app.route('/api/ask-question', methods=['POST'])
 def ask_question():
