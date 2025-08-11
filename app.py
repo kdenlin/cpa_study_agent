@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import pdfplumber
 import chromadb
+from sentence_transformers import SentenceTransformer
 import re
 
 # Load environment variables
@@ -60,6 +61,15 @@ def load_questions_from_folder(folder_path):
                 print(f"Error processing {filename}: {e}")
     return questions
 
+def setup_embedding_model():
+    """Set up sentence transformer model for embeddings."""
+    try:
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        return model
+    except Exception as e:
+        print(f"Error setting up embedding model: {e}")
+        return None
+
 def setup_chroma_client():
     """Set up ChromaDB client."""
     try:
@@ -72,16 +82,21 @@ def setup_chroma_client():
 def retrieve_relevant_chunks(query, n_results=3):
     """Retrieve relevant chunks from ChromaDB."""
     client = setup_chroma_client()
-    if not client:
+    embedding_model = setup_embedding_model()
+    
+    if not client or not embedding_model:
         return []
     
     try:
         # Get the collection (create if it doesn't exist)
         collection = client.get_or_create_collection("textbook_chunks")
         
-        # Search for relevant chunks
+        # Generate embedding for the query
+        query_embedding = embedding_model.encode([query]).tolist()
+        
+        # Search for relevant chunks using embeddings
         results = collection.query(
-            query_texts=[query],
+            query_embeddings=query_embedding,
             n_results=n_results
         )
         
@@ -96,6 +111,90 @@ def retrieve_relevant_chunks(query, n_results=3):
     except Exception as e:
         print(f"Error retrieving chunks: {e}")
         return []
+
+def ingest_documents_to_chromadb():
+    """Ingest textbook documents into ChromaDB."""
+    client = setup_chroma_client()
+    embedding_model = setup_embedding_model()
+    
+    if not client or not embedding_model:
+        print("Failed to setup ChromaDB or embedding model")
+        return False
+    
+    if not os.path.exists(textbooks_folder):
+        print(f"Textbooks folder not found: {textbooks_folder}")
+        return False
+    
+    try:
+        collection = client.get_or_create_collection("textbook_chunks")
+        
+        # Check if collection already has data
+        if collection.count() > 0:
+            print(f"Collection already has {collection.count()} documents")
+            return True
+        
+        documents = []
+        embeddings = []
+        metadatas = []
+        ids = []
+        
+        chunk_id = 0
+        
+        for filename in os.listdir(textbooks_folder):
+            if filename.lower().endswith('.pdf'):
+                pdf_path = os.path.join(textbooks_folder, filename)
+                try:
+                    with pdfplumber.open(pdf_path) as pdf:
+                        for page_num, page in enumerate(pdf.pages):
+                            page_text = page.extract_text()
+                            if page_text and len(page_text.strip()) > 50:
+                                # Split into chunks (roughly 500 characters each)
+                                chunks = [page_text[i:i+500] for i in range(0, len(page_text), 500)]
+                                
+                                for chunk in chunks:
+                                    if len(chunk.strip()) > 50:
+                                        documents.append(chunk.strip())
+                                        metadatas.append({
+                                            'filename': filename,
+                                            'page': page_num + 1
+                                        })
+                                        ids.append(f"chunk_{chunk_id}")
+                                        chunk_id += 1
+                                        
+                                        # Generate embeddings in batches
+                                        if len(documents) % 10 == 0:
+                                            batch_embeddings = embedding_model.encode(documents[-10:]).tolist()
+                                            embeddings.extend(batch_embeddings)
+                                        
+                                        # Add to ChromaDB in batches
+                                        if len(documents) % 50 == 0:
+                                            collection.add(
+                                                documents=documents[-50:],
+                                                embeddings=embeddings[-50:],
+                                                metadatas=metadatas[-50:],
+                                                ids=ids[-50:]
+                                            )
+                                            print(f"Added {len(documents)} chunks from {filename}")
+                                        
+                except Exception as e:
+                    print(f"Error processing {filename}: {e}")
+        
+        # Add any remaining documents
+        if documents:
+            remaining_embeddings = embedding_model.encode(documents).tolist()
+            collection.add(
+                documents=documents,
+                embeddings=remaining_embeddings,
+                metadatas=metadatas,
+                ids=ids
+            )
+        
+        print(f"Successfully ingested {len(documents)} chunks into ChromaDB")
+        return True
+        
+    except Exception as e:
+        print(f"Error ingesting documents: {e}")
+        return False
 
 def get_simple_context(query):
     """Get simple context based on keywords instead of embeddings."""
@@ -215,6 +314,18 @@ def check_answer():
         'feedback': feedback,
         'context_sources': context_sources
     })
+
+@app.route('/api/ingest-documents', methods=['POST'])
+def ingest_documents():
+    """Ingest textbook documents into ChromaDB."""
+    try:
+        success = ingest_documents_to_chromadb()
+        if success:
+            return jsonify({'message': 'Documents successfully ingested into ChromaDB'})
+        else:
+            return jsonify({'error': 'Failed to ingest documents'}), 500
+    except Exception as e:
+        return jsonify({'error': f'Error ingesting documents: {str(e)}'}), 500
 
 @app.route('/api/ask-question', methods=['POST'])
 def ask_question():
