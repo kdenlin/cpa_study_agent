@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import pdfplumber
 import chromadb
-from sentence_transformers import SentenceTransformer
 import re
 
 # Load environment variables
@@ -62,10 +61,10 @@ def load_questions_from_folder(folder_path):
     return questions
 
 def setup_embedding_model():
-    """Set up sentence transformer model for embeddings."""
+    """Set up embedding model using ChromaDB's default."""
     try:
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        return model
+        # Use ChromaDB's default embedding function
+        return None  # ChromaDB will use its default
     except Exception as e:
         print(f"Error setting up embedding model: {e}")
         return None
@@ -82,21 +81,17 @@ def setup_chroma_client():
 def retrieve_relevant_chunks(query, n_results=3):
     """Retrieve relevant chunks from ChromaDB."""
     client = setup_chroma_client()
-    embedding_model = setup_embedding_model()
     
-    if not client or not embedding_model:
+    if not client:
         return []
     
     try:
         # Get the collection (create if it doesn't exist)
         collection = client.get_or_create_collection("textbook_chunks")
         
-        # Generate embedding for the query
-        query_embedding = embedding_model.encode([query]).tolist()
-        
-        # Search for relevant chunks using embeddings
+        # Search for relevant chunks using text query (ChromaDB will handle embeddings)
         results = collection.query(
-            query_embeddings=query_embedding,
+            query_texts=[query],
             n_results=n_results
         )
         
@@ -115,10 +110,9 @@ def retrieve_relevant_chunks(query, n_results=3):
 def ingest_documents_to_chromadb():
     """Ingest textbook documents into ChromaDB."""
     client = setup_chroma_client()
-    embedding_model = setup_embedding_model()
     
-    if not client or not embedding_model:
-        print("Failed to setup ChromaDB or embedding model")
+    if not client:
+        print("Failed to setup ChromaDB")
         return False
     
     if not os.path.exists(textbooks_folder):
@@ -134,7 +128,6 @@ def ingest_documents_to_chromadb():
             return True
         
         documents = []
-        embeddings = []
         metadatas = []
         ids = []
         
@@ -161,16 +154,10 @@ def ingest_documents_to_chromadb():
                                         ids.append(f"chunk_{chunk_id}")
                                         chunk_id += 1
                                         
-                                        # Generate embeddings in batches
-                                        if len(documents) % 10 == 0:
-                                            batch_embeddings = embedding_model.encode(documents[-10:]).tolist()
-                                            embeddings.extend(batch_embeddings)
-                                        
                                         # Add to ChromaDB in batches
                                         if len(documents) % 50 == 0:
                                             collection.add(
                                                 documents=documents[-50:],
-                                                embeddings=embeddings[-50:],
                                                 metadatas=metadatas[-50:],
                                                 ids=ids[-50:]
                                             )
@@ -181,10 +168,8 @@ def ingest_documents_to_chromadb():
         
         # Add any remaining documents
         if documents:
-            remaining_embeddings = embedding_model.encode(documents).tolist()
             collection.add(
                 documents=documents,
-                embeddings=remaining_embeddings,
                 metadatas=metadatas,
                 ids=ids
             )
