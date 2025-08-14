@@ -1,3 +1,9 @@
+#!/usr/bin/env python3
+"""
+CPA Study Agent - Tax Court Exam Prep Buddy
+Deployed on Hugging Face Spaces
+"""
+
 from flask import Flask, render_template, request, jsonify, session
 import os
 import random
@@ -6,9 +12,14 @@ from openai import OpenAI
 import pdfplumber
 import chromadb
 import re
+import threading
+import time
 
 # Load environment variables
 load_dotenv()
+
+# Disable ChromaDB telemetry to avoid warnings
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # For session management
@@ -16,7 +27,7 @@ app.secret_key = os.urandom(24)  # For session management
 # Set up project paths
 project_root = os.path.abspath(os.path.dirname(__file__))
 questions_folder = os.path.join(project_root, "data", "questions")
-textbooks_folder = os.path.join(project_root, "data", "textbooks")
+textbooks_folder = os.path.join(project_root, "textbooks")  # Changed from "data/textbooks" to "textbooks"
 chroma_db_path = os.path.join(project_root, "db", "chroma_db_test")
 
 def setup_openai_client():
@@ -27,38 +38,6 @@ def setup_openai_client():
         return None
     
     return OpenAI(api_key=api_key)
-
-def load_questions_from_folder(folder_path):
-    """Load practice questions from PDF files."""
-    questions = []
-    if not os.path.exists(folder_path):
-        return questions
-        
-    for filename in os.listdir(folder_path):
-        if filename.lower().endswith('.pdf'):
-            pdf_path = os.path.join(folder_path, filename)
-            try:
-                with pdfplumber.open(pdf_path) as pdf:
-                    full_text = ""
-                    for page in pdf.pages:
-                        page_text = page.extract_text()
-                        if page_text:
-                            full_text += "\n" + page_text
-                    
-                    # Use regex to extract questions
-                    pattern = r'(Question [A-Z]-\d+ \([^)]+\)[\s\S]*?)(?=Question [A-Z]-\d+ \(|\Z)'
-                    matches = re.findall(pattern, full_text, re.IGNORECASE)
-                    for q in matches:
-                        # Remove everything after 'SUGGESTED ANSWER:' if present
-                        marker = 'SUGGESTED ANSWER:'
-                        idx = q.upper().find(marker)
-                        if idx != -1:
-                            q = q[:idx].strip()
-                        if len(q.strip()) > 20:
-                            questions.append({'text': q.strip(), 'source': filename})
-            except Exception as e:
-                print(f"Error processing {filename}: {e}")
-    return questions
 
 def setup_embedding_model():
     """Set up embedding model using ChromaDB's default."""
@@ -110,158 +89,74 @@ def retrieve_relevant_chunks(query, n_results=3):
         print(f"Error retrieving chunks: {e}")
         return []
 
-def ingest_documents_to_chromadb():
-    """Ingest textbook documents into ChromaDB."""
-    client = setup_chroma_client()
+def load_questions_from_folder(folder_path):
+    """Load practice questions from PDF files."""
+    questions = []
     
-    if not client:
-        print("Failed to setup ChromaDB")
-        return False
-    
-    if not os.path.exists(textbooks_folder):
-        print(f"Textbooks folder not found: {textbooks_folder}")
-        return False
-    
-    try:
-        collection = client.get_or_create_collection("textbook_chunks")
-        
-        # Check if collection already has data
-        if collection.count() > 0:
-            print(f"Collection already has {collection.count()} documents")
-            return True
-        
-        total_chunks = 0
-        
-        # Process one PDF at a time to avoid memory issues
-        for filename in os.listdir(textbooks_folder):
+    # First try to load from PDF files
+    if os.path.exists(folder_path):
+        for filename in os.listdir(folder_path):
             if filename.lower().endswith('.pdf'):
-                pdf_path = os.path.join(textbooks_folder, filename)
-                print(f"Processing {filename}...")
-                
+                pdf_path = os.path.join(folder_path, filename)
                 try:
-                    documents = []
-                    metadatas = []
-                    ids = []
-                    
                     with pdfplumber.open(pdf_path) as pdf:
-                        for page_num, page in enumerate(pdf.pages):
-                            try:
-                                page_text = page.extract_text()
-                                if page_text and len(page_text.strip()) > 50:
-                                    # Split into smaller chunks (300 characters each)
-                                    chunks = [page_text[i:i+300] for i in range(0, len(page_text), 300)]
-                                    
-                                    for chunk in chunks:
-                                        if len(chunk.strip()) > 50:
-                                            documents.append(chunk.strip())
-                                            metadatas.append({
-                                                'filename': filename,
-                                                'page': page_num + 1
-                                            })
-                                            ids.append(f"chunk_{total_chunks}")
-                                            total_chunks += 1
-                                            
-                                            # Add to ChromaDB in smaller batches
-                                            if len(documents) % 25 == 0:
-                                                collection.add(
-                                                    documents=documents[-25:],
-                                                    metadatas=metadatas[-25:],
-                                                    ids=ids[-25:]
-                                                )
-                                                print(f"  Added {len(documents)} chunks from {filename}")
-                            except Exception as e:
-                                print(f"  Error processing page {page_num + 1} in {filename}: {e}")
-                                continue
-                    
-                    # Add any remaining documents from this file
-                    if documents:
-                        collection.add(
-                            documents=documents,
-                            metadatas=metadatas,
-                            ids=ids
-                        )
-                        print(f"  Completed {filename}: {len(documents)} chunks")
+                        full_text = ""
+                        for page in pdf.pages:
+                            page_text = page.extract_text()
+                            if page_text:
+                                full_text += "\n" + page_text
                         
+                        # Use regex to extract questions
+                        pattern = r'(Question [A-Z]-\d+ \([^)]+\)[\s\S]*?)(?=Question [A-Z]-\d+ \(|\Z)'
+                        matches = re.findall(pattern, full_text, re.IGNORECASE)
+                        for q in matches:
+                            # Remove everything after 'SUGGESTED ANSWER:' if present
+                            marker = 'SUGGESTED ANSWER:'
+                            idx = q.upper().find(marker)
+                            if idx != -1:
+                                q = q[:idx].strip()
+                            if len(q.strip()) > 20:
+                                questions.append({'text': q.strip(), 'source': filename})
                 except Exception as e:
                     print(f"Error processing {filename}: {e}")
-                    continue
-        
-        print(f"Successfully ingested {total_chunks} total chunks into ChromaDB")
-        return True
-        
-    except Exception as e:
-        print(f"Error ingesting documents: {e}")
-        return False
-
-def ingest_specific_files(file_list):
-    """Ingest specific PDF files into ChromaDB."""
-    client = setup_chroma_client()
     
-    if not client:
-        print("Failed to setup ChromaDB")
-        return False
-    
-    try:
-        collection = client.get_or_create_collection("textbook_chunks")
-        total_chunks = 0
-        
-        for filename in file_list:
-            pdf_path = os.path.join(textbooks_folder, filename)
-            print(f"Processing {filename}...")
-            
+    # If no questions found from PDFs, load sample questions
+    if not questions:
+        sample_questions_path = os.path.join(project_root, "sample_questions.txt")
+        if os.path.exists(sample_questions_path):
             try:
-                documents = []
-                metadatas = []
-                ids = []
-                
-                with pdfplumber.open(pdf_path) as pdf:
-                    for page_num, page in enumerate(pdf.pages):
-                        try:
-                            page_text = page.extract_text()
-                            if page_text and len(page_text.strip()) > 50:
-                                # Split into smaller chunks (300 characters each)
-                                chunks = [page_text[i:i+300] for i in range(0, len(page_text), 300)]
-                                
-                                for chunk in chunks:
-                                    if len(chunk.strip()) > 50:
-                                        documents.append(chunk.strip())
-                                        metadatas.append({
-                                            'filename': filename,
-                                            'page': page_num + 1
-                                        })
-                                        ids.append(f"chunk_{total_chunks}")
-                                        total_chunks += 1
-                                        
-                                        # Add to ChromaDB in smaller batches
-                                        if len(documents) % 25 == 0:
-                                            collection.add(
-                                                documents=documents[-25:],
-                                                metadatas=metadatas[-25:],
-                                                ids=ids[-25:]
-                                            )
-                                            print(f"  Added {len(documents)} chunks from {filename}")
-                        except Exception as e:
-                            print(f"  Error processing page {page_num + 1} in {filename}: {e}")
-                            continue
-                
-                # Add any remaining documents from this file
-                if documents:
-                    collection.add(
-                        documents=documents,
-                        metadatas=metadatas,
-                        ids=ids
-                    )
-                    print(f"  Completed {filename}: {len(documents)} chunks")
-                    
+                with open(sample_questions_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    # Split by double newlines to get individual questions
+                    question_blocks = content.split('\n\n')
+                    for block in question_blocks:
+                        if block.strip() and 'Question' in block:
+                            questions.append({'text': block.strip(), 'source': 'Sample Questions'})
             except Exception as e:
-                print(f"Error processing {filename}: {e}")
-                continue
-        
-        print(f"Successfully ingested {total_chunks} total chunks from batch")
-        return True
-        
+                print(f"Error loading sample questions: {e}")
+    
+    # If still no questions, provide a default set
+    if not questions:
+        default_questions = [
+            "What is the primary purpose of the Tax Court in the United States?",
+            "What are the filing requirements for a petition to the Tax Court?",
+            "Who bears the burden of proof in Tax Court proceedings?",
+            "What are the Small Case Procedures in Tax Court?",
+            "How does the appeals process work for Tax Court decisions?"
+        ]
+        for q in default_questions:
+            questions.append({'text': q, 'source': 'Default Questions'})
+    
+    return questions
+
+def ingest_documents_to_chromadb():
+    """Ingest textbook documents into ChromaDB using the improved ingestion script."""
+    try:
+        # Import the improved ingestion function
+        from app.ingestion.pdf_ingest import ingest_pdfs_to_chromadb
+        return ingest_pdfs_to_chromadb()
     except Exception as e:
-        print(f"Error ingesting specific files: {e}")
+        print(f"Error importing or running ingestion script: {e}")
         return False
 
 def get_simple_context(query):
@@ -274,7 +169,7 @@ def check_answer_with_openai(question_text, user_answer, context_chunks=None, mo
     """Check student answer using OpenAI."""
     client = setup_openai_client()
     if client is None:
-        return "Error: OpenAI API key not configured. Please check your .env file."
+        return "Error: OpenAI API key not configured. Please check your environment variables."
     
     # Try to get relevant chunks from ChromaDB
     context_chunks = retrieve_relevant_chunks(question_text)
@@ -372,6 +267,7 @@ def check_answer():
     
     # Get context sources from chunks
     context_sources = []
+    context_chunks = retrieve_relevant_chunks(question_text)
     if context_chunks:
         context_sources = [f"{meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')})" 
                           for _, meta in context_chunks]
@@ -383,89 +279,96 @@ def check_answer():
         'context_sources': context_sources
     })
 
+@app.route('/api/clear-database', methods=['POST'])
+def clear_database():
+    """Clear the ChromaDB collection and restart fresh."""
+    try:
+        client = setup_chroma_client()
+        if not client:
+            return jsonify({'error': 'ChromaDB not available'}), 500
+        
+        # Delete the existing collection
+        try:
+            client.delete_collection("textbook_chunks")
+            print("Deleted existing collection")
+        except:
+            print("No existing collection to delete")
+        
+        # Create a fresh collection
+        collection = client.create_collection("textbook_chunks")
+        print("Created fresh collection")
+        
+        return jsonify({'message': 'Database cleared successfully. You can now re-ingest documents.'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error clearing database: {str(e)}'}), 500
+
 @app.route('/api/ingest-documents', methods=['POST'])
 def ingest_documents():
     """Ingest textbook documents into ChromaDB."""
     try:
         print("Starting document ingestion...")
+        print(f"Looking for PDFs in: {textbooks_folder}")
+        print(f"Project root: {project_root}")
         
         # Check if textbooks folder exists
         if not os.path.exists(textbooks_folder):
-            error_msg = f"Textbooks folder not found: {textbooks_folder}"
+            print(f"Textbooks folder does not exist: {textbooks_folder}")
+            # Create the folder structure for future use
+            os.makedirs(textbooks_folder, exist_ok=True)
+            os.makedirs(questions_folder, exist_ok=True)
+            
+            error_msg = f"No PDF files found in textbooks folder. The folder has been created at: {textbooks_folder}"
             print(error_msg)
-            return jsonify({'error': error_msg}), 500
+            return jsonify({
+                'message': 'No PDF files found. Sample questions are available for practice.',
+                'info': 'To add your own documents, upload PDF files to the textbooks folder.',
+                'sample_available': True
+            })
         
         # Check what files are in the folder
         files = os.listdir(textbooks_folder)
+        print(f"All files in textbooks folder: {files}")
         pdf_files = [f for f in files if f.lower().endswith('.pdf')]
         print(f"Found {len(pdf_files)} PDF files: {pdf_files}")
         
+        if not pdf_files:
+            # Also check the root directory for PDFs
+            root_files = os.listdir(project_root)
+            root_pdfs = [f for f in root_files if f.lower().endswith('.pdf')]
+            print(f"Found {len(root_pdfs)} PDF files in root directory: {root_pdfs}")
+            
+            if root_pdfs:
+                # Move PDFs to the textbooks folder
+                for pdf_file in root_pdfs:
+                    src_path = os.path.join(project_root, pdf_file)
+                    dst_path = os.path.join(textbooks_folder, pdf_file)
+                    try:
+                        import shutil
+                        shutil.copy2(src_path, dst_path)
+                        print(f"Moved {pdf_file} to textbooks folder")
+                    except Exception as e:
+                        print(f"Error moving {pdf_file}: {e}")
+                
+                # Re-check the textbooks folder
+                files = os.listdir(textbooks_folder)
+                pdf_files = [f for f in files if f.lower().endswith('.pdf')]
+                print(f"After moving, found {len(pdf_files)} PDF files: {pdf_files}")
+            
+            if not pdf_files:
+                return jsonify({
+                    'message': 'No PDF files found in the textbooks folder. Sample questions are available for practice.',
+                    'info': 'To add your own documents, upload PDF files to the textbooks folder.',
+                    'sample_available': True
+                })
+        
         success = ingest_documents_to_chromadb()
         if success:
-            return jsonify({'message': 'Documents successfully ingested into ChromaDB'})
+            return jsonify({'message': f'Successfully processed {len(pdf_files)} PDF files into ChromaDB'})
         else:
             return jsonify({'error': 'Failed to ingest documents - check server logs'}), 500
     except Exception as e:
         error_msg = f'Error ingesting documents: {str(e)}'
-        print(error_msg)
-        return jsonify({'error': error_msg}), 500
-
-@app.route('/api/ingest-batch', methods=['POST'])
-def ingest_batch():
-    """Ingest a specific batch of PDF files."""
-    try:
-        data = request.get_json()
-        batch_size = data.get('batch_size', 3)  # Default 3 PDFs per batch
-        start_index = data.get('start_index', 0)  # Which batch to start with
-        
-        print(f"Starting batch ingestion: batch_size={batch_size}, start_index={start_index}")
-        
-        # Check if textbooks folder exists
-        if not os.path.exists(textbooks_folder):
-            error_msg = f"Textbooks folder not found: {textbooks_folder}"
-            print(error_msg)
-            return jsonify({'error': error_msg}), 500
-        
-        # Get list of PDF files
-        files = os.listdir(textbooks_folder)
-        pdf_files = [f for f in files if f.lower().endswith('.pdf')]
-        pdf_files.sort()  # Sort for consistent ordering
-        
-        if not pdf_files:
-            return jsonify({'error': 'No PDF files found'}), 500
-        
-        # Calculate batch range
-        start_file = start_index * batch_size
-        end_file = min(start_file + batch_size, len(pdf_files))
-        
-        if start_file >= len(pdf_files):
-            return jsonify({
-                'message': 'All batches completed!',
-                'total_files': len(pdf_files),
-                'processed_files': len(pdf_files),
-                'is_complete': True
-            })
-        
-        # Process this batch
-        batch_files = pdf_files[start_file:end_file]
-        print(f"Processing batch: {batch_files}")
-        
-        success = ingest_specific_files(batch_files)
-        
-        if success:
-            is_complete = end_file >= len(pdf_files)
-            return jsonify({
-                'message': f'Successfully processed batch: {batch_files}',
-                'processed_files': end_file,
-                'total_files': len(pdf_files),
-                'next_batch': start_index + 1 if not is_complete else None,
-                'is_complete': is_complete
-            })
-        else:
-            return jsonify({'error': f'Failed to process batch: {batch_files}'}), 500
-            
-    except Exception as e:
-        error_msg = f'Error in batch ingestion: {str(e)}'
         print(error_msg)
         return jsonify({'error': error_msg}), 500
 
@@ -480,14 +383,32 @@ def ingest_status():
         collection = client.get_or_create_collection("textbook_chunks")
         chunk_count = collection.count()
         
-        # Get list of PDF files
-        files = os.listdir(textbooks_folder) if os.path.exists(textbooks_folder) else []
-        pdf_files = [f for f in files if f.lower().endswith('.pdf')]
+        # Get list of PDF files from multiple locations
+        files_info = {}
+        
+        # Check textbooks folder
+        if os.path.exists(textbooks_folder):
+            files = os.listdir(textbooks_folder)
+            pdf_files = [f for f in files if f.lower().endswith('.pdf')]
+            files_info['textbooks_folder'] = pdf_files
+        else:
+            files_info['textbooks_folder'] = []
+        
+        # Check root directory
+        root_files = os.listdir(project_root)
+        root_pdfs = [f for f in root_files if f.lower().endswith('.pdf')]
+        files_info['root_directory'] = root_pdfs
+        
+        # Total PDF files found
+        total_pdf_files = len(files_info['textbooks_folder']) + len(files_info['root_directory'])
         
         return jsonify({
             'chunks_ingested': chunk_count,
-            'total_pdf_files': len(pdf_files),
-            'has_data': chunk_count > 0
+            'total_pdf_files': total_pdf_files,
+            'has_data': chunk_count > 0,
+            'files_info': files_info,
+            'textbooks_folder_path': textbooks_folder,
+            'root_directory_path': project_root
         })
         
     except Exception as e:
@@ -566,6 +487,10 @@ Please provide a clear, accurate answer based on the context provided."""
     except Exception as e:
         return jsonify({'error': f'Error calling OpenAI API: {str(e)}'}), 500
 
+# Hugging Face Spaces specific configuration
+app.config['PREFERRED_URL_SCHEME'] = 'https'
+
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    # Hugging Face Spaces expects port 7860
+    port = int(os.environ.get('PORT', 7860))
     app.run(debug=False, host='0.0.0.0', port=port) 

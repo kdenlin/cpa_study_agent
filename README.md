@@ -1,45 +1,98 @@
-# Miles's Tax Court Exam Prep Buddy
+---
+title: CPA Study Agent - Tax Court Exam Prep Buddy
+emoji: 📚
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+sdk_version: 3.50.2
+app_file: gradio_app.py
+pinned: false
+---
 
-An AI-powered study assistant for Tax Court exam preparation, built with Flask and OpenAI.
+# CPA Study Agent - Tax Court Exam Prep Buddy
+
+An AI-powered study assistant for Tax Court exam preparation using Flask, OpenAI, and ChromaDB.
 
 ## Features
 
-- 📚 **Document Ingestion**: Process PDF textbooks and extract questions
-- 🤖 **AI-Powered Q&A**: Get answers using OpenAI GPT-3.5-turbo
-- 🔍 **RAG System**: Retrieve relevant context from textbook chunks
-- 💬 **Interactive Interface**: Web-based UI for easy interaction
-- 📊 **Batch Processing**: Process large documents in manageable chunks
+- Practice question generation and evaluation
+- Textbook document ingestion and retrieval
+- AI-powered answer checking with feedback
+- Custom question asking with context-aware responses
+- ChromaDB for document storage and retrieval
 
-## Tech Stack
+## Deployment to Hugging Face Spaces
 
-- **Backend**: Flask (Python)
-- **AI**: OpenAI GPT-3.5-turbo
-- **Vector Database**: ChromaDB
-- **PDF Processing**: PDFPlumber
-- **Deployment**: Hugging Face Spaces (Docker)
+### Prerequisites
+1. A Hugging Face account
+2. OpenAI API key
 
-## Environment Variables
+### Steps to Deploy
 
-Set these in your Hugging Face Space settings:
+1. **Create a Hugging Face Space:**
+   - Go to [Hugging Face Spaces](https://huggingface.co/spaces)
+   - Click "Create new Space"
+   - Choose "Gradio" as the SDK
+   - Name your space (e.g., "cpa-study-agent")
+   - Choose public or private
 
-- `OPENAI_API_KEY`: Your OpenAI API key
+2. **Clone your space repository:**
+   ```bash
+   git clone https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME
+   cd YOUR_SPACE_NAME
+   ```
+
+3. **Copy your application files:**
+   - Copy all files from this directory to your space repository
+   - Make sure to include: `app.py`, `requirements.txt`, `templates/`, etc.
+
+4. **Set up environment variables:**
+   - In your Hugging Face Space settings, add:
+     - `OPENAI_API_KEY`: Your OpenAI API key
+     - `FLASK_ENV`: "production"
+
+5. **Push to deploy:**
+   ```bash
+   git add .
+   git commit -m "Initial deployment"
+   git push
+   ```
+
+### Local Development
+
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Set up environment variables:**
+   - Create a `.env` file with your OpenAI API key:
+   ```
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
+
+3. **Run the application:**
+   ```bash
+   python app.py
+   ```
 
 ## Usage
 
-1. **Access the web interface** at your Hugging Face Space URL
-2. **Ingest documents** using the batch processing API
-3. **Ask questions** and get AI-powered answers
-4. **Practice with extracted questions** from your textbooks
+1. **Practice Questions:** Get random practice questions and submit answers for AI feedback
+2. **Document Ingestion:** Upload textbook PDFs to build a knowledge base
+3. **Custom Questions:** Ask specific questions and get context-aware answers
+4. **Answer Checking:** Submit answers to practice questions for detailed feedback
 
-## API Endpoints
+## File Structure
 
-- `GET /`: Main web interface
-- `POST /api/ingest-batch`: Process PDF files in batches
-- `GET /api/ingest-status`: Check ingestion status
-- `POST /api/ask-question`: Ask custom questions
-- `GET /api/random-question`: Get a random practice question
-- `POST /api/check-answer`: Check answer accuracy
+- `app.py`: Main Flask application
+- `requirements.txt`: Python dependencies
+- `templates/`: HTML templates
+- `data/`: Directory for questions and textbooks
+- `db/`: ChromaDB storage directory
 
-## Deployment
+## Environment Variables
 
-This app is configured for Hugging Face Spaces using Docker. The `Dockerfile` handles all dependencies and setup automatically. 
+- `OPENAI_API_KEY`: Your OpenAI API key (required)
+- `FLASK_ENV`: Flask environment (production/development)
+- `PORT`: Port number (default: 5000) 
