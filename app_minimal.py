@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CPA Study Agent - Tax Court Exam Prep Buddy
+CPA Study Agent - Minimal Version (No ChromaDB)
 Deployed on Hugging Face Spaces
 """
 
@@ -10,10 +10,7 @@ import random
 from dotenv import load_dotenv
 from openai import OpenAI
 import pdfplumber
-import chromadb
 import re
-import threading
-import time
 
 # Load environment variables
 load_dotenv()
@@ -27,8 +24,7 @@ app.secret_key = os.urandom(24)  # For session management
 # Set up project paths
 project_root = os.path.abspath(os.path.dirname(__file__))
 questions_folder = os.path.join(project_root, "data", "questions")
-textbooks_folder = os.path.join(project_root, "textbooks")  # Changed from "data/textbooks" to "textbooks"
-chroma_db_path = os.path.join(project_root, "db", "chroma_db_test")
+textbooks_folder = os.path.join(project_root, "textbooks")
 
 def setup_openai_client():
     """Set up OpenAI client using environment variables."""
@@ -38,53 +34,6 @@ def setup_openai_client():
         return None
     
     return OpenAI(api_key=api_key)
-
-def setup_embedding_model():
-    """Set up embedding model using ChromaDB's default."""
-    try:
-        # Use ChromaDB's default embedding function
-        return None  # ChromaDB will use its default
-    except Exception as e:
-        print(f"Error setting up embedding model: {e}")
-        return None
-
-def setup_chroma_client():
-    """Set up ChromaDB client."""
-    try:
-        client = chromadb.PersistentClient(path=chroma_db_path)
-        return client
-    except Exception as e:
-        print(f"Error setting up ChromaDB: {e}")
-        return None
-
-def retrieve_relevant_chunks(query, n_results=3):
-    """Retrieve relevant chunks from ChromaDB."""
-    client = setup_chroma_client()
-    
-    if not client:
-        return []
-    
-    try:
-        # Get the collection (create if it doesn't exist)
-        collection = client.get_or_create_collection("textbook_chunks")
-        
-        # Search for relevant chunks using text query (ChromaDB will handle embeddings)
-        results = collection.query(
-            query_texts=[query],
-            n_results=n_results
-        )
-        
-        # Format results
-        chunks = []
-        if results['documents'] and results['documents'][0]:
-            for i, doc in enumerate(results['documents'][0]):
-                metadata = results['metadatas'][0][i] if results['metadatas'] and results['metadatas'][0] else {}
-                chunks.append((doc, metadata))
-        
-        return chunks
-    except Exception as e:
-        print(f"Error retrieving chunks: {e}")
-        return []
 
 def load_questions_from_folder(folder_path):
     """Load practice questions from PDF files."""
@@ -146,16 +95,6 @@ def load_questions_from_folder(folder_path):
     
     return questions
 
-def ingest_documents_to_chromadb():
-    """Ingest textbook documents into ChromaDB using the improved ingestion script."""
-    try:
-        # Import the improved ingestion function
-        from app.ingestion.pdf_ingest import ingest_pdfs_to_chromadb
-        return ingest_pdfs_to_chromadb()
-    except Exception as e:
-        print(f"Error importing or running ingestion script: {e}")
-        return False
-
 def get_simple_context(query):
     """Get simple context based on keywords instead of embeddings."""
     # This is a simplified version that doesn't require sentence-transformers
@@ -168,16 +107,7 @@ def check_answer_with_openai(question_text, user_answer, context_chunks=None, mo
     if client is None:
         return "Error: OpenAI API key not configured. Please check your environment variables."
     
-    # Try to get relevant chunks from ChromaDB
-    context_chunks = retrieve_relevant_chunks(question_text)
-    
-    if context_chunks:
-        context = "\n\n".join([
-            f"From {meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')}):\n{chunk}"
-            for chunk, meta in context_chunks
-        ])
-    else:
-        context = get_simple_context(question_text)
+    context = get_simple_context(question_text)
     
     system_prompt = """You are Miles's enthusiastic and encouraging Tax Court Exam Prep Buddy! Your role is to:
 
@@ -262,154 +192,10 @@ def check_answer():
     # Get feedback from OpenAI
     feedback = check_answer_with_openai(question_text, user_answer)
     
-    # Get context sources from chunks
-    context_sources = []
-    context_chunks = retrieve_relevant_chunks(question_text)
-    if context_chunks:
-        context_sources = [f"{meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')})" 
-                          for _, meta in context_chunks]
-    else:
-        context_sources = ['Sample Textbook']
-    
     return jsonify({
         'feedback': feedback,
-        'context_sources': context_sources
+        'context_sources': ['Sample Textbook']
     })
-
-@app.route('/api/clear-database', methods=['POST'])
-def clear_database():
-    """Clear the ChromaDB collection and restart fresh."""
-    try:
-        client = setup_chroma_client()
-        if not client:
-            return jsonify({'error': 'ChromaDB not available'}), 500
-        
-        # Delete the existing collection
-        try:
-            client.delete_collection("textbook_chunks")
-            print("Deleted existing collection")
-        except:
-            print("No existing collection to delete")
-        
-        # Create a fresh collection
-        collection = client.create_collection("textbook_chunks")
-        print("Created fresh collection")
-        
-        return jsonify({'message': 'Database cleared successfully. You can now re-ingest documents.'})
-        
-    except Exception as e:
-        return jsonify({'error': f'Error clearing database: {str(e)}'}), 500
-
-@app.route('/api/ingest-documents', methods=['POST'])
-def ingest_documents():
-    """Ingest textbook documents into ChromaDB."""
-    try:
-        print("Starting document ingestion...")
-        print(f"Looking for PDFs in: {textbooks_folder}")
-        print(f"Project root: {project_root}")
-        
-        # Check if textbooks folder exists
-        if not os.path.exists(textbooks_folder):
-            print(f"Textbooks folder does not exist: {textbooks_folder}")
-            # Create the folder structure for future use
-            os.makedirs(textbooks_folder, exist_ok=True)
-            os.makedirs(questions_folder, exist_ok=True)
-            
-            error_msg = f"No PDF files found in textbooks folder. The folder has been created at: {textbooks_folder}"
-            print(error_msg)
-            return jsonify({
-                'message': 'No PDF files found. Sample questions are available for practice.',
-                'info': 'To add your own documents, upload PDF files to the textbooks folder.',
-                'sample_available': True
-            })
-        
-        # Check what files are in the folder
-        files = os.listdir(textbooks_folder)
-        print(f"All files in textbooks folder: {files}")
-        pdf_files = [f for f in files if f.lower().endswith('.pdf')]
-        print(f"Found {len(pdf_files)} PDF files: {pdf_files}")
-        
-        if not pdf_files:
-            # Also check the root directory for PDFs
-            root_files = os.listdir(project_root)
-            root_pdfs = [f for f in root_files if f.lower().endswith('.pdf')]
-            print(f"Found {len(root_pdfs)} PDF files in root directory: {root_pdfs}")
-            
-            if root_pdfs:
-                # Move PDFs to the textbooks folder
-                for pdf_file in root_pdfs:
-                    src_path = os.path.join(project_root, pdf_file)
-                    dst_path = os.path.join(textbooks_folder, pdf_file)
-                    try:
-                        import shutil
-                        shutil.copy2(src_path, dst_path)
-                        print(f"Moved {pdf_file} to textbooks folder")
-                    except Exception as e:
-                        print(f"Error moving {pdf_file}: {e}")
-                
-                # Re-check the textbooks folder
-                files = os.listdir(textbooks_folder)
-                pdf_files = [f for f in files if f.lower().endswith('.pdf')]
-                print(f"After moving, found {len(pdf_files)} PDF files: {pdf_files}")
-            
-            if not pdf_files:
-                return jsonify({
-                    'message': 'No PDF files found in the textbooks folder. Sample questions are available for practice.',
-                    'info': 'To add your own documents, upload PDF files to the textbooks folder.',
-                    'sample_available': True
-                })
-        
-        success = ingest_documents_to_chromadb()
-        if success:
-            return jsonify({'message': f'Successfully processed {len(pdf_files)} PDF files into ChromaDB'})
-        else:
-            return jsonify({'error': 'Failed to ingest documents - check server logs'}), 500
-    except Exception as e:
-        error_msg = f'Error ingesting documents: {str(e)}'
-        print(error_msg)
-        return jsonify({'error': error_msg}), 500
-
-@app.route('/api/ingest-status', methods=['GET'])
-def ingest_status():
-    """Check the status of document ingestion."""
-    try:
-        client = setup_chroma_client()
-        if not client:
-            return jsonify({'error': 'ChromaDB not available'}), 500
-        
-        collection = client.get_or_create_collection("textbook_chunks")
-        chunk_count = collection.count()
-        
-        # Get list of PDF files from multiple locations
-        files_info = {}
-        
-        # Check textbooks folder
-        if os.path.exists(textbooks_folder):
-            files = os.listdir(textbooks_folder)
-            pdf_files = [f for f in files if f.lower().endswith('.pdf')]
-            files_info['textbooks_folder'] = pdf_files
-        else:
-            files_info['textbooks_folder'] = []
-        
-        # Check root directory
-        root_files = os.listdir(project_root)
-        root_pdfs = [f for f in root_files if f.lower().endswith('.pdf')]
-        files_info['root_directory'] = root_pdfs
-        
-        # Total PDF files found
-        total_pdf_files = len(files_info['textbooks_folder']) + len(files_info['root_directory'])
-        
-        return jsonify({
-            'chunks_ingested': chunk_count,
-            'total_pdf_files': total_pdf_files,
-            'has_data': chunk_count > 0,
-            'files_info': files_info,
-            'textbooks_folder_path': textbooks_folder,
-            'root_directory_path': project_root
-        })
-        
-    except Exception as e:
-        return jsonify({'error': f'Error checking status: {str(e)}'}), 500
 
 @app.route('/api/ask-question', methods=['POST'])
 def ask_question():
@@ -425,16 +211,7 @@ def ask_question():
     if client is None:
         return jsonify({'error': 'OpenAI API key not configured'}), 500
     
-    # Try to get relevant chunks from ChromaDB
-    context_chunks = retrieve_relevant_chunks(question)
-    
-    if context_chunks:
-        context = "\n\n".join([
-            f"From {meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')}):\n{chunk}"
-            for chunk, meta in context_chunks
-        ])
-    else:
-        context = get_simple_context(question)
+    context = get_simple_context(question)
     
     system_prompt = """You are Miles's enthusiastic and encouraging Tax Court Exam Prep Buddy! Use the provided textbook excerpts to answer questions accurately and comprehensively.
 
@@ -469,17 +246,9 @@ Please provide a clear, accurate answer based on the context provided."""
         )
         answer = response.choices[0].message.content.strip()
         
-        # Get context sources from chunks
-        context_sources = []
-        if context_chunks:
-            context_sources = [f"{meta.get('filename', 'Unknown')} (page {meta.get('page', 'Unknown')})" 
-                              for _, meta in context_chunks]
-        else:
-            context_sources = ['Sample Textbook']
-        
         return jsonify({
             'answer': answer,
-            'context_sources': context_sources
+            'context_sources': ['Sample Textbook']
         })
     except Exception as e:
         return jsonify({'error': f'Error calling OpenAI API: {str(e)}'}), 500
@@ -490,4 +259,4 @@ app.config['PREFERRED_URL_SCHEME'] = 'https'
 if __name__ == '__main__':
     # Hugging Face Spaces expects port 7860
     port = int(os.environ.get('PORT', 7860))
-    app.run(debug=False, host='0.0.0.0', port=port) 
+    app.run(debug=False, host='0.0.0.0', port=port)
