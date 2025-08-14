@@ -74,7 +74,6 @@ def test_chromadb():
     
     try:
         import chromadb
-        from chromadb.config import Settings
         
         project_root = os.path.abspath(os.path.dirname(__file__))
         persist_dir = os.path.join(project_root, "app", "db", "chroma_db_test")
@@ -85,10 +84,7 @@ def test_chromadb():
         os.makedirs(persist_dir, exist_ok=True)
         
         # Test client creation
-        client = chromadb.Client(Settings(
-            chroma_db_impl="duckdb+parquet",
-            persist_directory=persist_dir
-        ))
+        client = chromadb.PersistentClient(path=persist_dir)
         print("✓ ChromaDB client created successfully")
         
         # Test collection creation
