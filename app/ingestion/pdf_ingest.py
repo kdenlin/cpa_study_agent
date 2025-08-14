@@ -2,6 +2,7 @@ import pdfplumber
 import re
 import os
 import chromadb
+from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 import gc
@@ -29,7 +30,10 @@ print("Textbooks folder absolute path:", folder_path)
 def setup_chroma_client():
     """Set up ChromaDB client with error handling"""
     try:
-        chroma_client = chromadb.PersistentClient(path=persist_dir)
+        chroma_client = chromadb.Client(Settings(
+            chroma_db_impl="duckdb+parquet",
+            persist_directory=persist_dir
+        ))
         return chroma_client
     except Exception as e:
         print(f"Error setting up ChromaDB client: {e}")
