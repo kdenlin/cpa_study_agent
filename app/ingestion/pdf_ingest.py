@@ -2,7 +2,6 @@ import pdfplumber
 import re
 import os
 import chromadb
-from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 import gc

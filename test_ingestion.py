@@ -74,7 +74,6 @@ def test_chromadb():
     
     try:
         import chromadb
-        from chromadb.config import Settings
         
         project_root = os.path.abspath(os.path.dirname(__file__))
         persist_dir = os.path.join(project_root, "app", "db", "chroma_db_test")

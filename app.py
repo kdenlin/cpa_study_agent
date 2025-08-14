@@ -51,10 +51,7 @@ def setup_embedding_model():
 def setup_chroma_client():
     """Set up ChromaDB client."""
     try:
-        client = chromadb.Client(chromadb.config.Settings(
-            chroma_db_impl="duckdb+parquet",
-            persist_directory=chroma_db_path
-        ))
+        client = chromadb.PersistentClient(path=chroma_db_path)
         return client
     except Exception as e:
         print(f"Error setting up ChromaDB: {e}")
