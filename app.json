@@ -1,11 +1,11 @@
 {
-  "name": "Miles Tax Court Prep Buddy",
-  "description": "AI-powered Tax Court exam preparation assistant",
-  "repository": "https://github.com/yourusername/your-repo-name",
-  "keywords": ["python", "flask", "openai", "tax-court"],
+  "name": "CPA Study Agent",
+  "description": "AI-powered Tax Court exam preparation assistant with ChromaDB document retrieval",
+  "repository": "https://github.com/kdenlin/cpa_study_agent",
+  "keywords": ["python", "flask", "openai", "chromadb", "tax-court", "ai"],
   "env": {
     "OPENAI_API_KEY": {
-      "description": "Your OpenAI API key",
+      "description": "Your OpenAI API key for AI-powered responses",
       "required": true
     },
     "FLASK_ENV": {
@@ -13,11 +13,6 @@
       "value": "production"
     }
   },
-  "buildpacks": [
-    {
-      "url": "heroku/python"
-    }
-  ],
   "formation": {
     "web": {
       "quantity": 1,

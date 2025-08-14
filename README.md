@@ -9,90 +9,87 @@ app_file: gradio_app.py
 pinned: false
 ---
 
-# CPA Study Agent - Tax Court Exam Prep Buddy
+# CPA Study Agent
 
-An AI-powered study assistant for Tax Court exam preparation using Flask, OpenAI, and ChromaDB.
+An AI-powered study assistant for Tax Court exam preparation, built with Flask and ChromaDB.
 
 ## Features
 
-- Practice question generation and evaluation
-- Textbook document ingestion and retrieval
-- AI-powered answer checking with feedback
-- Custom question asking with context-aware responses
-- ChromaDB for document storage and retrieval
+- **Practice Questions**: Get random practice questions and receive AI-powered feedback
+- **Custom Questions**: Ask any question about Tax Court topics and get detailed answers
+- **Document Management**: Ingest PDF textbooks and retrieve relevant information
+- **Modern UI**: Clean, responsive web interface built with Bootstrap
 
-## Deployment to Hugging Face Spaces
+## Technology Stack
 
-### Prerequisites
-1. A Hugging Face account
-2. OpenAI API key
+- **Backend**: Flask (Python web framework)
+- **Database**: ChromaDB (vector database for document storage)
+- **AI**: OpenAI GPT-3.5-turbo for intelligent responses
+- **Frontend**: Bootstrap 5 + jQuery for responsive UI
+- **PDF Processing**: pdfplumber for text extraction
+- **Embeddings**: sentence-transformers for semantic search
 
-### Steps to Deploy
+## Deployment
 
-1. **Create a Hugging Face Space:**
-   - Go to [Hugging Face Spaces](https://huggingface.co/spaces)
-   - Click "Create new Space"
-   - Choose "Gradio" as the SDK
-   - Name your space (e.g., "cpa-study-agent")
-   - Choose public or private
+This application is configured for deployment on Hugging Face Spaces.
 
-2. **Clone your space repository:**
-   ```bash
-   git clone https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME
-   cd YOUR_SPACE_NAME
-   ```
+### Environment Variables
 
-3. **Copy your application files:**
-   - Copy all files from this directory to your space repository
-   - Make sure to include: `app.py`, `requirements.txt`, `templates/`, etc.
-
-4. **Set up environment variables:**
-   - In your Hugging Face Space settings, add:
-     - `OPENAI_API_KEY`: Your OpenAI API key
-     - `FLASK_ENV`: "production"
-
-5. **Push to deploy:**
-   ```bash
-   git add .
-   git commit -m "Initial deployment"
-   git push
-   ```
+- `OPENAI_API_KEY`: Your OpenAI API key (required)
 
 ### Local Development
 
-1. **Install dependencies:**
+1. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Set up environment variables:**
-   - Create a `.env` file with your OpenAI API key:
-   ```
-   OPENAI_API_KEY=your_openai_api_key_here
+2. Set up environment variables:
+   ```bash
+   export OPENAI_API_KEY=your_api_key_here
    ```
 
-3. **Run the application:**
+3. Run the application:
    ```bash
    python app.py
    ```
 
-## Usage
-
-1. **Practice Questions:** Get random practice questions and submit answers for AI feedback
-2. **Document Ingestion:** Upload textbook PDFs to build a knowledge base
-3. **Custom Questions:** Ask specific questions and get context-aware answers
-4. **Answer Checking:** Submit answers to practice questions for detailed feedback
-
 ## File Structure
 
-- `app.py`: Main Flask application
-- `requirements.txt`: Python dependencies
-- `templates/`: HTML templates
-- `data/`: Directory for questions and textbooks
-- `db/`: ChromaDB storage directory
+```
+cpa_study_agent/
+├── app.py                 # Main Flask application
+├── requirements.txt       # Python dependencies
+├── app.json              # Hugging Face Spaces configuration
+├── templates/            # HTML templates
+│   ├── base.html         # Base template with styling
+│   └── index.html        # Main application interface
+├── app/
+│   └── ingestion/
+│       └── pdf_ingest.py # PDF processing and ChromaDB ingestion
+└── textbooks/            # Place PDF textbooks here
+```
 
-## Environment Variables
+## API Endpoints
 
-- `OPENAI_API_KEY`: Your OpenAI API key (required)
-- `FLASK_ENV`: Flask environment (production/development)
-- `PORT`: Port number (default: 5000) 
+- `GET /` - Main application interface
+- `GET /api/random-question` - Get a random practice question
+- `POST /api/check-answer` - Check answer and get feedback
+- `POST /api/ask-question` - Ask a custom question
+- `POST /api/ingest-documents` - Ingest PDF documents
+- `GET /api/ingest-status` - Check document ingestion status
+- `POST /api/clear-database` - Clear the ChromaDB database
+
+## Recent Changes
+
+- **Converted from Gradio to pure Flask**: Eliminated dependency conflicts by removing Gradio
+- **Modern UI**: Implemented responsive Bootstrap interface with tabbed navigation
+- **Stable Dependencies**: Using older but stable versions of ChromaDB and Pydantic
+- **Better Error Handling**: Improved error handling and user feedback
+
+## Troubleshooting
+
+If you encounter dependency issues:
+1. The application uses ChromaDB 0.3.21 with Pydantic 1.10.13 for stability
+2. All dependencies are pinned to specific versions to avoid conflicts
+3. The Flask app runs directly without Gradio wrapper 

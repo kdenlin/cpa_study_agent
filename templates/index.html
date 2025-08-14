@@ -1,413 +1,342 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Miles's Tax Court Exam Prep Buddy</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .main-container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            backdrop-filter: blur(10px);
-        }
-        .header {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            color: white;
-            border-radius: 20px 20px 0 0;
-            padding: 2rem;
-        }
-        .tab-content {
-            padding: 2rem;
-        }
-        .question-card {
-            background: #f8f9fa;
-            border: 2px solid #e9ecef;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s ease;
-        }
-        .question-card:hover {
-            border-color: #667eea;
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-        .feedback-area {
-            background: #e8f5e8;
-            border: 2px solid #28a745;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-top: 1rem;
-        }
-        .answer-area {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            border-radius: 15px;
-            padding: 1.5rem;
-            margin-top: 1rem;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 2rem;
-        }
-        .spinner-border {
-            color: #667eea;
-        }
-        .nav-tabs .nav-link {
-            border: none;
-            border-radius: 10px 10px 0 0;
-            margin-right: 5px;
-            font-weight: 600;
-        }
-        .nav-tabs .nav-link.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        .form-control, .form-select {
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            padding: 0.75rem;
-        }
-        .form-control:focus, .form-select:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
-        }
-        .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 15px;
-            padding: 1.5rem;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-    <div class="container-fluid py-4">
-        <div class="row justify-content-center">
-            <div class="col-lg-10">
-                <div class="main-container">
-                    <!-- Header -->
-                    <div class="header text-center">
-                        <h1><i class="fas fa-graduation-cap me-3"></i>Miles's Tax Court Exam Prep Buddy</h1>
-                        <p class="mb-0">Your AI study companion for Tax Court exam preparation</p>
+{% extends "base.html" %}
+
+{% block title %}CPA Study Agent - Home{% endblock %}
+
+{% block content %}
+<!-- Practice Questions Tab -->
+<div class="tab-pane fade show active" id="practice" role="tabpanel">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-question-circle me-2"></i>Practice Questions
+                    </h5>
+                    <p class="card-text">Get a random practice question and receive AI-powered feedback on your answer.</p>
+                    
+                    <div class="mb-3">
+                        <button id="getQuestionBtn" class="btn btn-primary">
+                            <i class="fas fa-random me-2"></i>Get Random Question
+                        </button>
                     </div>
-
-                    <!-- Navigation Tabs -->
-                    <ul class="nav nav-tabs" id="mainTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="practice-tab" data-bs-toggle="tab" data-bs-target="#practice" type="button" role="tab">
-                                <i class="fas fa-question-circle me-2"></i>Practice Questions
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="ask-tab" data-bs-toggle="tab" data-bs-target="#ask" type="button" role="tab">
-                                <i class="fas fa-search me-2"></i>Ask Questions
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="stats-tab" data-bs-toggle="tab" data-bs-target="#stats" type="button" role="tab">
-                                <i class="fas fa-chart-bar me-2"></i>Statistics
-                            </button>
-                        </li>
-                    </ul>
-
-                    <!-- Tab Content -->
-                    <div class="tab-content" id="mainTabsContent">
-                        <!-- Practice Questions Tab -->
-                        <div class="tab-pane fade show active" id="practice" role="tabpanel">
-                            <div class="row">
-                                <div class="col-md-8">
-                                    <div class="d-flex justify-content-between align-items-center mb-4">
-                                        <h3><i class="fas fa-question-circle me-2"></i>Tax Court Practice Questions</h3>
-                                        <button class="btn btn-primary" onclick="getRandomQuestion()">
-                                            <i class="fas fa-random me-2"></i>New Question
-                                        </button>
-                                    </div>
-                                    
-                                    <div id="questionContainer" class="question-card">
-                                        <p class="text-muted">Click "New Question" to start practicing!</p>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label for="userAnswer" class="form-label"><strong>Your Answer:</strong></label>
-                                        <textarea class="form-control" id="userAnswer" rows="4" placeholder="Type your answer here..."></textarea>
-                                    </div>
-
-                                    <button class="btn btn-primary" onclick="checkAnswer()" id="checkBtn">
-                                        <i class="fas fa-check me-2"></i>Check Answer
-                                    </button>
-
-                                    <div id="feedbackContainer" class="feedback-area" style="display: none;">
-                                        <h5><i class="fas fa-comment me-2"></i>Feedback</h5>
-                                        <div id="feedbackText"></div>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-4">
-                                    <div class="stats-card">
-                                        <h4><i class="fas fa-info-circle me-2"></i>Question Info</h4>
-                                        <div id="questionInfo">
-                                            <p>Source: <span id="questionSource">-</span></p>
-                                            <p>Total Questions: <span id="totalQuestions">-</span></p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Ask Questions Tab -->
-                        <div class="tab-pane fade" id="ask" role="tabpanel">
-                                                         <h3><i class="fas fa-search me-2"></i>Ask Tax Court Questions</h3>
-                             <p class="text-muted">Ask any Tax Court or tax law question and get answers based on your study materials.</p>
-                            
-                            <div class="mb-3">
-                                <label for="customQuestion" class="form-label"><strong>Your Question:</strong></label>
-                                                                 <textarea class="form-control" id="customQuestion" rows="3" placeholder="What would you like to know about Tax Court or tax law?"></textarea>
-                            </div>
-
-                            <button class="btn btn-primary" onclick="askCustomQuestion()" id="askBtn">
-                                <i class="fas fa-paper-plane me-2"></i>Ask Question
-                            </button>
-
-                            <div id="answerContainer" class="answer-area" style="display: none;">
-                                <h5><i class="fas fa-lightbulb me-2"></i>Answer</h5>
-                                <div id="answerText"></div>
-                                <div id="answerSources" class="mt-3">
-                                    <small class="text-muted"><strong>Sources:</strong> <span id="sourcesList"></span></small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Statistics Tab -->
-                        <div class="tab-pane fade" id="stats" role="tabpanel">
-                                                         <h3><i class="fas fa-chart-bar me-2"></i>Tax Court Study Progress</h3>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="stats-card">
-                                                                                 <h4>Tax Court Questions</h4>
-                                         <h2 id="questionsCount">-</h2>
-                                         <p>Practice questions loaded</p>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="stats-card">
-                                                                                 <h4>Tax Law Knowledge</h4>
-                                         <h2 id="chunksCount">-</h2>
-                                         <p>Study materials indexed</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    
+                    <div class="mb-3">
+                        <label for="questionText" class="form-label">Question:</label>
+                        <textarea class="form-control" id="questionText" rows="5" readonly placeholder="Click 'Get Random Question' to start..."></textarea>
                     </div>
-
-                    <!-- Loading Spinner -->
-                    <div id="loading" class="loading">
+                    
+                    <div class="mb-3">
+                        <label for="answerInput" class="form-label">Your Answer:</label>
+                        <textarea class="form-control" id="answerInput" rows="4" placeholder="Type your answer here..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button id="checkAnswerBtn" class="btn btn-primary" disabled>
+                            <i class="fas fa-check me-2"></i>Check Answer
+                        </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="feedbackOutput" class="form-label">Feedback:</label>
+                        <textarea class="form-control" id="feedbackOutput" rows="8" readonly placeholder="Your feedback will appear here..."></textarea>
+                    </div>
+                    
+                    <div id="practiceLoading" class="loading">
                         <div class="spinner-border" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <p class="mt-3">Processing your request...</p>
+                        <p class="mt-2">Processing...</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let currentQuestion = null;
+<!-- Custom Question Tab -->
+<div class="tab-pane fade" id="custom" role="tabpanel">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-search me-2"></i>Ask Custom Question
+                    </h5>
+                    <p class="card-text">Ask any question about Tax Court topics and get AI-powered answers with source references.</p>
+                    
+                    <div class="mb-3">
+                        <label for="customQuestion" class="form-label">Your Question:</label>
+                        <textarea class="form-control" id="customQuestion" rows="3" placeholder="What would you like to know about Tax Court?"></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button id="askQuestionBtn" class="btn btn-primary">
+                            <i class="fas fa-paper-plane me-2"></i>Ask Question
+                        </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="customAnswer" class="form-label">Answer:</label>
+                        <textarea class="form-control" id="customAnswer" rows="10" readonly placeholder="The answer will appear here..."></textarea>
+                    </div>
+                    
+                    <div id="customLoading" class="loading">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Thinking...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-        // Initialize the application
-        document.addEventListener('DOMContentLoaded', function() {
-            loadStats();
+<!-- Document Management Tab -->
+<div class="tab-pane fade" id="docs" role="tabpanel">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-file-alt me-2"></i>Document Management
+                    </h5>
+                    <p class="card-text">Manage your PDF textbooks and database. Ingest documents to enable AI-powered responses.</p>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <button id="ingestBtn" class="btn btn-primary w-100">
+                                <i class="fas fa-upload me-2"></i>Ingest Documents
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button id="statusBtn" class="btn btn-secondary w-100">
+                                <i class="fas fa-info-circle me-2"></i>Check Status
+                            </button>
+                        </div>
+                        <div class="col-md-4">
+                            <button id="clearBtn" class="btn btn-secondary w-100">
+                                <i class="fas fa-trash me-2"></i>Clear Database
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="statusOutput" class="form-label">Status:</label>
+                        <textarea class="form-control" id="statusOutput" rows="4" readonly placeholder="Click 'Check Status' to see current database status..."></textarea>
+                    </div>
+                    
+                    <div id="docsLoading" class="loading">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Processing...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- About Tab -->
+<div class="tab-pane fade" id="about" role="tabpanel">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-info-circle me-2"></i>About This Application
+                    </h5>
+                    
+                    <div class="mb-4">
+                        <p>This is an AI-powered study assistant designed to help you prepare for the Tax Court exam.</p>
+                    </div>
+                    
+                    <h6><i class="fas fa-star me-2"></i>Features:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success me-2"></i>Practice with randomly generated questions</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Get detailed feedback on your answers</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Ask custom questions about Tax Court topics</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Document ingestion and retrieval with ChromaDB</li>
+                        <li><i class="fas fa-check text-success me-2"></i>AI-powered responses using OpenAI GPT-3.5-turbo</li>
+                    </ul>
+                    
+                    <h6><i class="fas fa-play me-2"></i>How to use:</h6>
+                    <ol>
+                        <li>Click "Get Random Question" to practice</li>
+                        <li>Type your answer and click "Check Answer"</li>
+                        <li>Use the "Ask Custom Question" tab for specific topics</li>
+                        <li>Use "Document Management" to ingest your PDF textbooks</li>
+                    </ol>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Note:</strong> Make sure to set your OpenAI API key in the environment variables.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Practice Questions
+    $('#getQuestionBtn').click(function() {
+        $('#practiceLoading').show();
+        $('#questionText').val('');
+        $('#feedbackOutput').val('');
+        
+        $.get('/api/random-question')
+            .done(function(data) {
+                $('#questionText').val(data.text || 'No question available');
+                $('#checkAnswerBtn').prop('disabled', false);
+            })
+            .fail(function(xhr) {
+                $('#questionText').val('Error: Could not fetch question');
+            })
+            .always(function() {
+                $('#practiceLoading').hide();
+            });
+    });
+    
+    $('#checkAnswerBtn').click(function() {
+        const question = $('#questionText').val();
+        const answer = $('#answerInput').val();
+        
+        if (!answer.trim()) {
+            alert('Please enter an answer first.');
+            return;
+        }
+        
+        $('#practiceLoading').show();
+        $('#feedbackOutput').val('');
+        
+        $.ajax({
+            url: '/api/check-answer',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                question: question,
+                answer: answer
+            })
+        })
+        .done(function(data) {
+            let feedback = data.feedback || 'No feedback available';
+            if (data.context_sources && data.context_sources.length > 0) {
+                feedback += '\n\nSources: ' + data.context_sources.join(', ');
+            }
+            $('#feedbackOutput').val(feedback);
+        })
+        .fail(function(xhr) {
+            $('#feedbackOutput').val('Error: Could not check answer');
+        })
+        .always(function() {
+            $('#practiceLoading').hide();
         });
-
-        // Load statistics
-        async function loadStats() {
-            try {
-                const response = await fetch('/api/questions');
-                const data = await response.json();
-                document.getElementById('questionsCount').textContent = data.count;
-                
-                // For now, we'll set a placeholder for chunks count
-                document.getElementById('chunksCount').textContent = 'Loaded';
-            } catch (error) {
-                console.error('Error loading stats:', error);
+    });
+    
+    // Custom Questions
+    $('#askQuestionBtn').click(function() {
+        const question = $('#customQuestion').val();
+        
+        if (!question.trim()) {
+            alert('Please enter a question first.');
+            return;
+        }
+        
+        $('#customLoading').show();
+        $('#customAnswer').val('');
+        
+        $.ajax({
+            url: '/api/ask-question',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                question: question
+            })
+        })
+        .done(function(data) {
+            let answer = data.answer || 'No answer available';
+            if (data.context_sources && data.context_sources.length > 0) {
+                answer += '\n\nSources: ' + data.context_sources.join(', ');
             }
-        }
-
-        // Get a random practice question
-        async function getRandomQuestion() {
-            showLoading();
-            try {
-                const response = await fetch('/api/random-question');
-                const question = await response.json();
-                
-                if (response.ok) {
-                    currentQuestion = question;
-                    displayQuestion(question);
-                } else {
-                    alert('Error: ' + question.error);
-                }
-            } catch (error) {
-                console.error('Error getting question:', error);
-                alert('Error loading question. Please try again.');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // Display a question
-        function displayQuestion(question) {
-            const container = document.getElementById('questionContainer');
-            container.innerHTML = `
-                <h5><i class="fas fa-question-circle me-2"></i>Practice Question</h5>
-                <div class="question-text">${question.text}</div>
-                <hr>
-                <small class="text-muted">Source: ${question.source}</small>
-            `;
-            
-            document.getElementById('questionSource').textContent = question.source;
-            document.getElementById('userAnswer').value = '';
-            document.getElementById('feedbackContainer').style.display = 'none';
-        }
-
-        // Check the user's answer
-        async function checkAnswer() {
-            if (!currentQuestion) {
-                alert('Please get a question first!');
-                return;
-            }
-
-            const userAnswer = document.getElementById('userAnswer').value.trim();
-            if (!userAnswer) {
-                alert('Please enter your answer first!');
-                return;
-            }
-
-            showLoading();
-            try {
-                const response = await fetch('/api/check-answer', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        question: currentQuestion.text,
-                        answer: userAnswer
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (response.ok) {
-                    displayFeedback(data.feedback);
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                console.error('Error checking answer:', error);
-                alert('Error checking answer. Please try again.');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // Display feedback
-        function displayFeedback(feedback) {
-            const container = document.getElementById('feedbackContainer');
-            const text = document.getElementById('feedbackText');
-            text.innerHTML = feedback.replace(/\n/g, '<br>');
-            container.style.display = 'block';
-            container.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // Ask a custom question
-        async function askCustomQuestion() {
-            const question = document.getElementById('customQuestion').value.trim();
-            if (!question) {
-                alert('Please enter a question!');
-                return;
-            }
-
-            showLoading();
-            try {
-                const response = await fetch('/api/ask-question', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ question: question })
-                });
-
-                const data = await response.json();
-                
-                if (response.ok) {
-                    displayAnswer(data.answer, data.context_sources);
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                console.error('Error asking question:', error);
-                alert('Error asking question. Please try again.');
-            } finally {
-                hideLoading();
-            }
-        }
-
-        // Display answer
-        function displayAnswer(answer, sources) {
-            const container = document.getElementById('answerContainer');
-            const text = document.getElementById('answerText');
-            const sourcesList = document.getElementById('sourcesList');
-            
-            text.innerHTML = answer.replace(/\n/g, '<br>');
-            sourcesList.textContent = sources.join(', ');
-            
-            container.style.display = 'block';
-            container.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // Show/hide loading spinner
-        function showLoading() {
-            document.getElementById('loading').style.display = 'block';
-        }
-
-        function hideLoading() {
-            document.getElementById('loading').style.display = 'none';
-        }
-
-        // Handle Enter key in textareas
-        document.getElementById('userAnswer').addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'Enter') {
-                checkAnswer();
-            }
+            $('#customAnswer').val(answer);
+        })
+        .fail(function(xhr) {
+            $('#customAnswer').val('Error: Could not get answer');
+        })
+        .always(function() {
+            $('#customLoading').hide();
         });
-
-        document.getElementById('customQuestion').addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'Enter') {
-                askCustomQuestion();
-            }
-        });
-    </script>
-</body>
-</html> 
+    });
+    
+    // Document Management
+    $('#ingestBtn').click(function() {
+        $('#docsLoading').show();
+        $('#statusOutput').val('');
+        
+        $.post('/api/ingest-documents')
+            .done(function(data) {
+                $('#statusOutput').val(data.message || 'Documents ingested successfully');
+            })
+            .fail(function(xhr) {
+                const response = xhr.responseJSON;
+                $('#statusOutput').val('Error: ' + (response?.error || 'Unknown error'));
+            })
+            .always(function() {
+                $('#docsLoading').hide();
+            });
+    });
+    
+    $('#statusBtn').click(function() {
+        $('#docsLoading').show();
+        $('#statusOutput').val('');
+        
+        $.get('/api/ingest-status')
+            .done(function(data) {
+                const chunks = data.chunks_ingested || 0;
+                const files = data.total_pdf_files || 0;
+                $('#statusOutput').val(`Status: ${chunks} chunks ingested from ${files} PDF files`);
+            })
+            .fail(function(xhr) {
+                $('#statusOutput').val('Error: Could not check status');
+            })
+            .always(function() {
+                $('#docsLoading').hide();
+            });
+    });
+    
+    $('#clearBtn').click(function() {
+        if (!confirm('Are you sure you want to clear the database? This will remove all ingested documents.')) {
+            return;
+        }
+        
+        $('#docsLoading').show();
+        $('#statusOutput').val('');
+        
+        $.post('/api/clear-database')
+            .done(function(data) {
+                $('#statusOutput').val(data.message || 'Database cleared successfully');
+            })
+            .fail(function(xhr) {
+                const response = xhr.responseJSON;
+                $('#statusOutput').val('Error: ' + (response?.error || 'Unknown error'));
+            })
+            .always(function() {
+                $('#docsLoading').hide();
+            });
+    });
+    
+    // Enable Enter key for custom questions
+    $('#customQuestion').keypress(function(e) {
+        if (e.which == 13 && !e.shiftKey) {
+            e.preventDefault();
+            $('#askQuestionBtn').click();
+        }
+    });
+});
+</script>
+{% endblock %} 
