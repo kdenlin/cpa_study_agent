@@ -24,28 +24,47 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
 venv/
 env/
 ENV/
+env.bak/
+venv.bak/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# ChromaDB
+db/chroma_db_test/
+*.db
+*.sqlite
 
 # Logs
 *.log
+logs/
 
-# Database
-*.db
-*.sqlite3
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
 
-# ChromaDB
-chroma_db_test/ 
+# API keys and secrets
+secrets.json
+config.json
+api_keys.txt 

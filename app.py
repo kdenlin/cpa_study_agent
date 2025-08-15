@@ -15,8 +15,17 @@ import re
 import threading
 import time
 
-# Load environment variables
+# Load environment variables (works for both .env files and Hugging Face Spaces secrets)
 load_dotenv()
+
+# Import Hugging Face Spaces configuration
+try:
+    from huggingface_spaces_config import setup_huggingface_environment, get_environment_info
+    # Set up environment for Hugging Face Spaces
+    setup_huggingface_environment()
+    get_environment_info()
+except ImportError:
+    print("Hugging Face Spaces config not found, using standard environment setup")
 
 # Disable ChromaDB telemetry to avoid warnings
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
@@ -27,17 +36,45 @@ app.secret_key = os.urandom(24)  # For session management
 # Set up project paths
 project_root = os.path.abspath(os.path.dirname(__file__))
 questions_folder = os.path.join(project_root, "data", "questions")
-textbooks_folder = os.path.join(project_root, "textbooks")  # Changed from "data/textbooks" to "textbooks"
+textbooks_folder = os.path.join(project_root, "data", "textbooks")  # Updated to match actual folder structure
 chroma_db_path = os.path.join(project_root, "db", "chroma_db_test")
 
 def setup_openai_client():
     """Set up OpenAI client using environment variables."""
+    # Try multiple ways to get the API key for Hugging Face Spaces compatibility
     api_key = os.getenv("OPENAI_API_KEY")
     
-    if not api_key or api_key == "your_openai_api_key_here":
+    # Debug information
+    print(f"Debug: API key found: {'Yes' if api_key else 'No'}")
+    if api_key:
+        print(f"Debug: API key starts with: {api_key[:10]}...")
+        print(f"Debug: API key length: {len(api_key)}")
+    
+    # More flexible validation for Hugging Face Spaces
+    if not api_key:
+        print("❌ Error: OPENAI_API_KEY environment variable not found")
+        print("💡 For Hugging Face Spaces: Make sure to add OPENAI_API_KEY to your repository secrets")
+        print("💡 Go to Settings > Secrets and variables > Actions > New repository secret")
+        print("💡 Name: OPENAI_API_KEY, Value: your_actual_api_key")
         return None
     
-    return OpenAI(api_key=api_key)
+    if api_key == "your_openai_api_key_here" or api_key.strip() == "":
+        print("❌ Error: OPENAI_API_KEY is set to placeholder value")
+        return None
+    
+    # Check if it looks like a valid OpenAI API key (including project keys)
+    if not (api_key.startswith("sk-") or api_key.startswith("sk-proj-")):
+        print("❌ Error: OPENAI_API_KEY doesn't appear to be a valid OpenAI API key")
+        print("💡 Valid keys start with 'sk-' or 'sk-proj-'")
+        return None
+    
+    try:
+        client = OpenAI(api_key=api_key)
+        print("✅ OpenAI client created successfully")
+        return client
+    except Exception as e:
+        print(f"❌ Error creating OpenAI client: {e}")
+        return None
 
 def setup_embedding_model():
     """Set up embedding model using ChromaDB's default."""
@@ -166,7 +203,12 @@ def check_answer_with_openai(question_text, user_answer, context_chunks=None, mo
     """Check student answer using OpenAI."""
     client = setup_openai_client()
     if client is None:
-        return "Error: OpenAI API key not configured. Please check your environment variables."
+        # Get more detailed error information
+        api_key = os.getenv("OPENAI_API_KEY")
+        debug_info = f"Debug: API key found: {'Yes' if api_key else 'No'}"
+        if api_key:
+            debug_info += f", starts with: {api_key[:10]}..."
+        return f"Error: OpenAI API key not configured. Please check your environment variables. {debug_info}"
     
     # Try to get relevant chunks from ChromaDB
     context_chunks = retrieve_relevant_chunks(question_text)

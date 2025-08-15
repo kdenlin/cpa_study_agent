@@ -1,175 +1,144 @@
-# CPA Study Agent - Deployment Guide
+# CPA Study Agent - Hugging Face Spaces Deployment Guide
 
-## Issues Fixed
+This guide will help you deploy your CPA Study Agent to Hugging Face Spaces and fix the OpenAI API key configuration issue.
 
-The following improvements have been made to resolve PDF ingestion issues on Hugging Face Spaces:
+## Quick Fix for "OpenAI API key not configured" Error
 
-### 1. **Missing Dependencies**
-- Added `sentence-transformers==2.2.2` for embeddings
-- Added `tqdm==4.66.1` for progress tracking
-- Added `torch==2.0.1` for PyTorch backend
-- Updated `openai==1.6.1` for latest API compatibility
+If you're seeing this error, follow these steps:
 
-### 2. **Memory Optimization**
-- Reduced batch sizes from 10 to 5 chunks per batch
-- Added garbage collection (`gc.collect()`) between batches
-- Implemented smaller chunk sizes (500 characters max)
-- Added delays between processing to prevent memory overflow
+### 1. Add OpenAI API Key to Repository Secrets
 
-### 3. **Error Handling**
-- Added comprehensive try-catch blocks
-- Better error messages and logging
-- Graceful handling of missing files or corrupted PDFs
+1. **Go to your Hugging Face repository**
+   - Navigate to your CPA Study Agent repository on Hugging Face
 
-### 4. **Path Handling**
-- Fixed inconsistent path handling between local and Hugging Face Spaces
-- Added fallback paths for different folder structures
+2. **Access repository settings**
+   - Click on the **Settings** tab in your repository
 
-## Testing Before Deployment
+3. **Navigate to secrets**
+   - In the left sidebar, click **Secrets and variables** > **Actions**
 
-### Step 1: Run Local Tests
-```bash
-cd cpa_study_agent
-python test_ingestion.py
+4. **Add new repository secret**
+   - Click **New repository secret**
+   - Set the name to: `OPENAI_API_KEY` (exactly this, case sensitive)
+   - Set the value to your actual OpenAI API key
+   - Click **Add secret**
+
+### 2. Verify Your API Key Format
+
+Your OpenAI API key should:
+- Start with `sk-` (standard key) or `sk-proj-` (project key)
+- Be 51+ characters long
+- Not contain any extra spaces, quotes, or special characters
+
+### 3. Wait for Redeployment
+
+After adding the secret:
+- Hugging Face will automatically trigger a new deployment
+- Wait 2-3 minutes for the deployment to complete
+- Check the **Actions** tab to see deployment progress
+
+### 4. Test Your Deployment
+
+Once deployed, your app should be available at:
+```
+https://huggingface.co/spaces/YOUR_USERNAME/YOUR_REPO_NAME
 ```
 
-This will test:
-- ✅ All required packages are installed
-- ✅ PDF files are found in correct locations
-- ✅ ChromaDB can be set up and used
-- ✅ Embedding model can load and generate embeddings
-- ✅ PDF processing works correctly
+## Detailed Troubleshooting
 
-### Step 2: Test PDF Ingestion Locally
-```bash
-cd cpa_study_agent
-python app/ingestion/pdf_ingest.py
+### If the error persists:
+
+1. **Check the secret name**
+   - Make sure it's exactly `OPENAI_API_KEY` (case sensitive)
+   - No extra spaces or characters
+
+2. **Verify the secret value**
+   - Ensure it's your actual API key, not a placeholder
+   - Check that it starts with `sk-` or `sk-proj-`
+
+3. **Check deployment logs**
+   - Go to the **Logs** tab in your Hugging Face Space
+   - Look for any error messages related to the API key
+
+4. **Test locally first**
+   - Run the test script: `python test_huggingface_deployment.py`
+   - This will help identify if the issue is with your API key or the deployment
+
+### Common Issues and Solutions
+
+#### Issue: "API key not found"
+**Solution**: Make sure you added the secret to the correct repository and with the exact name `OPENAI_API_KEY`
+
+#### Issue: "Invalid API key"
+**Solution**: 
+- Check that your API key is valid and has sufficient credits
+- Verify the key format (should start with `sk-` or `sk-proj-`)
+- Make sure there are no extra characters or spaces
+
+#### Issue: "Deployment failed"
+**Solution**:
+- Check the **Actions** tab for build errors
+- Ensure all required files are in the repository
+- Verify that `requirements.txt` contains all necessary dependencies
+
+## Required Files for Deployment
+
+Make sure these files are in your repository:
+
+```
+├── app.py                           # Main Flask application
+├── requirements.txt                 # Python dependencies
+├── README.md                        # Project description
+├── huggingface_spaces_config.py     # Hugging Face configuration
+├── test_huggingface_deployment.py   # Deployment test script
+├── data/
+│   ├── questions/                   # PDF files with practice questions
+│   └── textbooks/                   # PDF files with textbook content
+├── db/                              # ChromaDB database (auto-created)
+└── templates/
+    └── index.html                   # Web interface
 ```
 
-This will:
-- Process all PDF files in the `textbooks/` folder
-- Show progress for each file
-- Display final chunk counts
-- Save to local ChromaDB
+## Testing Your Deployment
 
-### Step 3: Test the Full Application
-```bash
-cd cpa_study_agent
-python gradio_app.py
-```
+### Before deploying to Hugging Face:
 
-Then:
-1. Open the application in your browser
-2. Go to "Document Management" tab
-3. Click "Check Status" to see current state
-4. Click "Ingest Documents" to test ingestion
-5. Try asking questions to test retrieval
+1. **Test locally**:
+   ```bash
+   python test_huggingface_deployment.py
+   ```
 
-## Deployment to Hugging Face Spaces
+2. **Test the main app**:
+   ```bash
+   python app.py
+   ```
 
-### Step 1: Prepare Your Repository
-1. Make sure all files are committed to your GitHub repository
-2. Ensure your `requirements.txt` is up to date
-3. Verify your `app.json` has the correct configuration
+### After deployment:
 
-### Step 2: Set Environment Variables
-In your Hugging Face Space settings, make sure you have:
-- `OPENAI_API_KEY`: Your OpenAI API key
+1. **Check the logs** in your Hugging Face Space
+2. **Test the web interface** by asking a question
+3. **Monitor API usage** in your OpenAI dashboard
 
-### Step 3: Deploy
-1. Push your changes to GitHub
-2. Hugging Face Spaces will automatically rebuild
-3. Monitor the build logs for any errors
+## Environment Variables
 
-## Troubleshooting Common Issues
+The application automatically detects environment variables from:
+- `.env` file (local development)
+- Hugging Face Spaces secrets (production)
 
-### Issue: "0 chunks ingested from 12 PDF files"
-**Causes:**
-- Memory constraints on Hugging Face Spaces
-- Missing dependencies
-- PDF processing errors
-- ChromaDB persistence issues
-
-**Solutions:**
-1. Check the build logs for error messages
-2. Ensure all dependencies are in `requirements.txt`
-3. Try with fewer PDF files first
-4. Check if PDFs are corrupted or password-protected
-
-### Issue: Process Never Stops
-**Causes:**
-- Memory overflow causing hanging
-- Infinite loops in processing
-- Network timeouts
-
-**Solutions:**
-1. The improved script has better memory management
-2. Added timeouts and error handling
-3. Smaller batch sizes prevent memory issues
-
-### Issue: ChromaDB Errors
-**Causes:**
-- Permission issues on Hugging Face Spaces
-- Disk space limitations
-- Corrupted database files
-
-**Solutions:**
-1. Clear database and restart: Use "Clear Database" button
-2. Check disk space in Hugging Face Spaces
-3. Ensure proper file permissions
-
-## Monitoring Deployment
-
-### Check Build Logs
-1. Go to your Hugging Face Space
-2. Click on "Settings" → "Build logs"
-3. Look for any error messages during build
-
-### Check Runtime Logs
-1. In your Space, go to "Settings" → "Logs"
-2. Look for application errors or warnings
-3. Monitor memory usage and performance
-
-### Test Functionality
-1. Try the "Check Status" button first
-2. Test with a single small PDF file
-3. Gradually add more files if successful
-
-## Performance Tips
-
-### For Large PDF Collections
-1. Process files in smaller batches
-2. Use smaller chunk sizes (already implemented)
-3. Consider using a smaller embedding model
-4. Monitor memory usage during processing
-
-### For Better Response Times
-1. Keep chunk sizes reasonable (500 chars max)
-2. Use appropriate batch sizes for ChromaDB
-3. Implement caching if needed
+No additional configuration is needed.
 
 ## Support
 
-If you continue to experience issues:
+If you continue to have issues:
 
-1. **Check the logs**: Both build and runtime logs contain valuable debugging information
-2. **Test locally first**: Always test with `test_ingestion.py` before deploying
-3. **Start small**: Test with 1-2 PDF files before processing your entire collection
-4. **Monitor resources**: Hugging Face Spaces has memory and CPU limitations
+1. **Check the logs** in your Hugging Face Space
+2. **Run the test script** locally to verify your setup
+3. **Verify your API key** is valid and has sufficient credits
+4. **Ensure all dependencies** are listed in `requirements.txt`
 
-## File Structure
-```
-cpa_study_agent/
-├── app/
-│   ├── ingestion/
-│   │   └── pdf_ingest.py          # Improved ingestion script
-│   └── db/
-│       └── chroma_db_test/        # ChromaDB storage
-├── textbooks/                     # PDF files go here
-├── requirements.txt               # Updated dependencies
-├── test_ingestion.py             # Test script
-├── gradio_app.py                 # Main application
-└── app.py                        # Flask backend
-```
+## Monitoring
 
-The improved ingestion script should now work reliably on Hugging Face Spaces with better error handling, memory management, and progress tracking. 
+- **Logs**: Check the **Logs** tab for application output
+- **Metrics**: Monitor performance in the **Metrics** tab
+- **API Usage**: Track usage in your OpenAI dashboard
+- **Actions**: Monitor deployment status in the **Actions** tab 
